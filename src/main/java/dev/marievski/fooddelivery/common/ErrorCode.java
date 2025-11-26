@@ -1,0 +1,14 @@
+package dev.marievski.fooddelivery.common;
+
+public enum ErrorCode {
+    MIN_TOTAL_NOT_REACHED,
+    VARIATION_UNAVAILABLE,
+    AMOUNT_MISMATCH,
+    ORDER_ALREADY_CONFIRMED,
+    CART_EMPTY,
+    BAD_REQUEST,
+    NOT_FOUND,
+    CONFLICT,
+    DUPLICATE_EXTERNAL_ID,
+    VALIDATION_ERROR
+}

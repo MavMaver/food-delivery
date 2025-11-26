@@ -1,0 +1,959 @@
+@scheme = http
+@host = localhost:8080
+@baseUrl = {{scheme}}://{{host}}
+
+
+### 1) Create USER (stores {{userId}})
+POST {{baseUrl}}/users
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Nikita",
+  "email": "nikita-{{$timestamp}}@example.com",
+  "role": "CUSTOMER"
+}
+> {%
+    if (response.body && response.body.id) client.global.set("userId", response.body.id);
+    client.test("User created", () => {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(client.global.get("userId") != null, "No user id saved");
+    });
+%}
+
+### 2) Create RESTAURANT (stores {{restaurantId}})
+POST {{baseUrl}}/restaurants
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Pasta & Pizza {{$randomInt}}",
+  "cuisine": "ITALIAN",
+  "open": true
+}
+> {%
+    if (response.body && response.body.id) client.global.set("restaurantId", response.body.id);
+    client.test("Restaurant created", () => client.assert(response.status === 200));
+%}
+
+### 3) Add DISH with VARIATIONS (stores {{itemId}}, {{variationSmallId}}, {{variationLargeId}})
+POST {{baseUrl}}/restaurants/{{restaurantId}}/menu
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Маргарита",
+  "description": "Классическая пицца",
+  "variations": [
+    { "label": "Small", "price": 200.00, "cookingMinutes": 12, "available": true },
+    { "label": "Large", "price": 450.00, "cookingMinutes": 15, "available": true }
+  ]
+}
+> {%
+    if (response.body) {
+        client.global.set("itemId", response.body.id);
+        const vars = response.body.variations || [];
+        const small = vars.find(v => v.label==="Small") || vars[0];
+        const large = vars.find(v => v.label==="Large") || vars[1];
+        if (small) client.global.set("variationSmallId", small.id);
+        if (large) client.global.set("variationLargeId", large.id);
+    }
+    client.test("Menu item created", () => {
+        client.assert(response.status === 200);
+        client.assert((response.body?.variations || []).length >= 2, "No variations");
+    });
+%}
+
+### 4) Add SMALL to CART (stores {{cartItemSmallId}})
+POST {{baseUrl}}/cart/items
+Accept: application/json
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "variationId": {{variationSmallId}},
+  "quantity": 2
+}
+> {%
+    if (response.body && Array.isArray(response.body.items)) {
+        const vsId = String(client.global.get("variationSmallId"));
+        const smallItem = response.body.items.find(i => String(i.variationId)===vsId);
+        if (smallItem) client.global.set("cartItemSmallId", smallItem.id);
+    }
+    client.test("Added small to cart", () => client.assert(response.status === 200));
+%}
+
+### 5) Add LARGE to CART (stores {{cartItemLargeId}})
+POST {{baseUrl}}/cart/items
+Accept: application/json
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "variationId": {{variationLargeId}},
+  "quantity": 2
+}
+> {%
+    if (response.body && Array.isArray(response.body.items)) {
+        const vlId = String(client.global.get("variationLargeId"));
+        const largeItem = response.body.items.find(i => String(i.variationId)===vlId);
+        if (largeItem) client.global.set("cartItemLargeId", largeItem.id);
+    }
+    client.test("Added large to cart", () => client.assert(response.status === 200));
+%}
+
+### 6) GET CART (see subtotal & eta)
+GET {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+### 7) Create ORDER from CART (stores {{orderId}})
+POST {{baseUrl}}/orders
+Accept: application/json
+Content-Type: application/json
+
+{ "userId": {{userId}} }
+> {%
+    if (response.body?.id != null) client.global.set("orderId", response.body.id);
+    client.test("Order created from cart", () => client.assert(response.status === 200));
+%}
+
+### 8) GET ORDER
+GET {{baseUrl}}/orders/{{orderId}}
+Accept: application/json
+
+### 9) STATUS: -> CONFIRMED
+PATCH {{baseUrl}}/orders/{{orderId}}/status
+Accept: application/json
+Content-Type: application/json
+
+{ "status": "CONFIRMED" }
+> {%
+    client.test("Status CONFIRMED", () => {
+        client.assert(response.status === 200);
+        client.assert((response.body?.status) === "CONFIRMED", "Wrong status");
+    });
+%}
+
+### 10) STATUS: -> READY
+PATCH {{baseUrl}}/orders/{{orderId}}/status
+Accept: application/json
+Content-Type: application/json
+
+{ "status": "READY" }
+> {%
+    client.test("Status READY", () => {
+        client.assert(response.status === 200);
+        client.assert((response.body?.status) === "READY", "Wrong status");
+    });
+%}
+
+### 11) STATUS: -> ASSIGNED
+PATCH {{baseUrl}}/orders/{{orderId}}/status
+Accept: application/json
+Content-Type: application/json
+
+{ "status": "ASSIGNED" }
+> {%
+    client.test("Status ASSIGNED", () => {
+        client.assert(response.status === 200);
+        client.assert((response.body?.status) === "ASSIGNED", "Wrong status");
+    });
+%}
+
+### 12) STATUS: -> DELIVERING
+PATCH {{baseUrl}}/orders/{{orderId}}/status
+Accept: application/json
+Content-Type: application/json
+
+{ "status": "DELIVERING" }
+> {%
+    client.test("Status DELIVERING", () => {
+        client.assert(response.status === 200);
+        client.assert((response.body?.status) === "DELIVERING", "Wrong status");
+    });
+%}
+
+### 13) STATUS: -> DELIVERED
+PATCH {{baseUrl}}/orders/{{orderId}}/status
+Accept: application/json
+Content-Type: application/json
+
+{ "status": "DELIVERED" }
+> {%
+    client.test("Status DELIVERED", () => {
+        client.assert(response.status === 200);
+        client.assert((response.body?.status) === "DELIVERED", "Wrong status");
+    });
+%}
+
+### 14) TRY CANCEL DELIVERED (expect 409)
+DELETE {{baseUrl}}/orders/{{orderId}}
+Accept: application/json
+
+> {%
+    client.test("Cancel delivered should be 409", () => {
+        client.assert(response.status === 409, "Expected 409 Conflict");
+    });
+%}
+
+
+### 15) MIN TOTAL < 300: prepare low-cost restaurant
+POST {{baseUrl}}/restaurants
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "LowCost {{$randomInt}}",
+  "cuisine": "ITALIAN",
+  "open": true
+}
+> {%
+    if (response.body?.id != null) client.global.set("lowRestaurantId", response.body.id);
+%}
+
+### 16) Add cheap menu (price 100) (stores {{cheapVariationId}})
+POST {{baseUrl}}/restaurants/{{lowRestaurantId}}/menu
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Cheap item",
+  "description": "Low price sample",
+  "variations": [
+    { "label": "Cheap", "price": 100.00, "cookingMinutes": 5, "available": true }
+  ]
+}
+> {%
+    const v = (response.body?.variations || [])[0];
+    if (v) client.global.set("cheapVariationId", v.id);
+%}
+
+### 17) CLEAR CART (start fresh)
+DELETE {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+### 18) Add 2x cheap (subtotal 200)
+POST {{baseUrl}}/cart/items
+Accept: application/json
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "variationId": {{cheapVariationId}},
+  "quantity": 2
+}
+
+### 19) Try create order (expect 409: minimum 300)
+POST {{baseUrl}}/orders
+Accept: application/json
+Content-Type: application/json
+
+{ "userId": {{userId}} }
+> {%
+    client.test("Expect 409 for min total < 300", () => {
+        client.assert(response.status === 409, "Expected 409 Conflict");
+    });
+%}
+
+### 20) UNAVAILABLE variation scenario: prepare sushi restaurant
+POST {{baseUrl}}/restaurants
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Sushi {{$randomInt}}",
+  "cuisine": "JAPANESE",
+  "open": true
+}
+> {%
+    if (response.body?.id != null) client.global.set("sushiRestaurantId", response.body.id);
+%}
+
+### 21) Add sushi menu (price 350) (stores {{sushiVariationId}})
+POST {{baseUrl}}/restaurants/{{sushiRestaurantId}}/menu
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Roll",
+  "description": "Fresh roll",
+  "variations": [
+    { "label": "Piece", "price": 350.00, "cookingMinutes": 8, "available": true }
+  ]
+}
+> {%
+    const v2 = (response.body?.variations || [])[0];
+    if (v2) client.global.set("sushiVariationId", v2.id);
+%}
+
+### 22) CLEAR CART
+DELETE {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+### 23) Add 1x sushi (subtotal 350)
+POST {{baseUrl}}/cart/items
+Accept: application/json
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "variationId": {{sushiVariationId}},
+  "quantity": 1
+}
+
+### 24) Make this variation UNAVAILABLE
+PATCH {{baseUrl}}/menu/{{sushiVariationId}}/availability
+Accept: application/json
+Content-Type: application/json
+
+{ "available": false }
+
+### 25) Try create order (expect 409: variation unavailable)
+POST {{baseUrl}}/orders
+Accept: application/json
+Content-Type: application/json
+
+{ "userId": {{userId}} }
+> {%
+    client.test("Expect 409 for unavailable variation", () => {
+        client.assert(response.status === 409, "Expected 409 Conflict");
+    });
+%}
+
+### 26) PAYMENTS PREP — делаем свежий заказ для оплаты
+
+# 26.1) Ресторан -> {{payRestaurantId}}
+POST {{baseUrl}}/restaurants
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "PayDemo {{$randomInt}}",
+  "cuisine": "ITALIAN",
+  "open": true
+}
+
+> {%
+    const b   = response.body;
+    const loc = response.headers['Location'] || response.headers['location'];
+    const m   = loc ? String(loc).match(/\/([0-9]+)(?:\?.*)?$/) : null;
+    const rid = b?.id ?? b?.restaurantId ?? (m ? Number(m[1]) : null);
+    if (rid != null) client.global.set("payRestaurantId", rid);
+    client.test("pay restaurant created", () => client.assert(response.status === 200));
+%}
+
+### 26.2) Блюдо (цена 350) -> {{payVariationId}}
+POST {{baseUrl}}/restaurants/{{payRestaurantId}}/menu
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Pay Dish",
+  "description": "For payment flow",
+  "variations": [
+    { "label": "One", "price": 350.00, "cookingMinutes": 8, "available": true }
+  ]
+}
+
+> {%
+    const v = (response.body?.variations || [])[0];
+    if (v?.id != null) client.global.set("payVariationId", v.id);
+    client.test("pay dish created", () => client.assert(response.status === 200));
+%}
+
+### 26.2.1) Sanity: включаем доступность именно нужной вариации
+PATCH {{baseUrl}}/menu/{{payVariationId}}/availability
+Accept: application/json
+Content-Type: application/json
+
+{ "available": true }
+
+> {%
+    const vid = client.global.get("payVariationId");
+    client.test("payVariationId exists", () => {
+        client.assert(vid != null, "payVariationId not set — проверь шаг 26.2");
+    });
+
+    const b = response.body || {};
+    const patchedId = String(b.id ?? b.variationId ?? "");
+    const same = patchedId === String(vid);
+    const available = (typeof b.available === "boolean") ? b.available : true; // если сервер не возвращает флаг
+
+    client.test("pay variation forced AVAILABLE", () => {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(same, `Patched different variation: got ${patchedId}, expected ${vid}`);
+        client.assert(available === true, "Variation is not available after patch");
+    });
+%}
+
+
+### 26.3) Чистим корзину и кладём 1 позицию (subtotal = 350)
+DELETE {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+POST {{baseUrl}}/cart/items
+Accept: application/json
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "variationId": {{payVariationId}},
+  "quantity": 1
+}
+> {%
+    // Если endpoint вернул пустое тело — это ок.
+    client.global.set("needOrderDiag", false);
+    client.test("item added to cart (status 200)", () => client.assert(response.status === 200));
+%}
+
+### 26.3.1) Проверяем корзину: есть ли нужная позиция? (без фейла, только флаг)
+GET {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+> {%
+    const b = response.body || {};
+    const items = Array.isArray(b.items) ? b.items : [];
+    const subtotal = Number(b?.subtotal ?? 0);
+    const wantVar = String(client.global.get("payVariationId"));
+
+    // ищем позицию по variationId (или id — на всякий случай)
+    const hasPayItem = items.some(i => {
+        const vid = String(i?.variationId ?? i?.id ?? "");
+        return vid === wantVar;
+    });
+
+    client.global.set("cartSubtotal", String(subtotal));
+    client.global.set("hasPayItem", hasPayItem ? "1" : "0");
+
+    // если нет нужной позиции — попросим ретрай на 26.3.2
+    client.global.set("needReAdd", (!hasPayItem ? "1" : "0"));
+
+    // мягкие проверки — НЕ фейлим прогон, только лог
+    try { console.log("CART CHECK", { hasPayItem, itemsCount: items.length, subtotal, wantVar }); } catch(e){}
+
+    client.test("cart check ok", () => client.assert(response.status === 200));
+%}
+
+### 26.3.2) Если позиции нет — пробуем добавить ЕЩЁ РАЗ
+POST {{baseUrl}}/cart/items
+Accept: application/json
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "variationId": {{payVariationId}},
+  "quantity": 1
+}
+
+> {%
+    const need = String(client.global.get("needReAdd") || "0") === "1";
+    client.test("re-add executed or skipped", () => client.assert(response.status === 200 || !need));
+%}
+
+### 26.3.3) Контрольный просмотр корзины: теперь позиция точно должна быть
+GET {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+> {%
+    const b = response.body || {};
+    const items = Array.isArray(b.items) ? b.items : [];
+    const subtotal = Number(b?.subtotal ?? 0);
+    const wantVar = String(client.global.get("payVariationId"));
+
+    const hasPayItem = items.some(i => String(i?.variationId ?? i?.id ?? "") === wantVar);
+
+    // сохраним subtotal как запасной total на оплату
+    if (!isNaN(subtotal) && subtotal > 0) {
+        client.global.set("orderTotalPay", Number(subtotal).toFixed(2));
+    }
+
+    // тут уже ЖЁСТКАЯ проверка — если после ретрая всё ещё нет, валим с понятным логом
+    client.test("cart contains pay item", () => {
+        if (!hasPayItem) {
+            const diag = { hasPayItem, itemsCount: items.length, subtotal, wantVar };
+            throw new Error("Cart doesn’t contain pay item after retry. " + JSON.stringify(diag));
+        }
+        client.assert(true);
+    });
+
+    client.test("cart subtotal >= 300", () => {
+        if (subtotal < 300) {
+            throw new Error("Subtotal < 300. " + JSON.stringify({ subtotal }));
+        }
+        client.assert(true);
+    });
+%}
+
+
+
+
+### 26.4) Создаём заказ -> {{orderIdPay}} и читаем его total -> {{orderTotalPay}}
+POST {{baseUrl}}/orders
+Accept: application/json
+Content-Type: application/json
+
+{ "userId": {{userId}} }
+
+> {%
+    const b   = response.body || {};
+    const loc = response.headers['Location'] || response.headers['location'];
+    const m   = loc ? String(loc).match(/\/([0-9]+)(?:\?.*)?$/) : null;
+    const oid = b?.id ?? b?.orderId ?? b?.order?.id ?? (m ? Number(m[1]) : null);
+
+    // Сохраняем id, если всё ок
+    if (response.status === 200 && oid != null) {
+        client.global.set("orderIdPay", oid);
+    }
+
+    // Если сервер сразу вернул сумму — фиксируем
+    const directTotal = b?.total ?? b?.subtotal ?? b?.amount;
+    if (response.status === 200 && directTotal != null) {
+        client.global.set("orderTotalPay", Number(directTotal));
+    }
+
+    // Разрешаем только 200. Если 409 — сразу объясняем почему и падаем.
+    if (response.status === 409) {
+        // Собираем подсказки по причине 409
+        const hasItem = String(client.global.get("hasPayItem")) === "1";
+        const subtotal = Number(client.global.get("orderTotalPay") ?? 0);
+        const reasons = [];
+        if (!hasItem) reasons.push("корзина пуста или не содержит нужную вариацию");
+        if (subtotal < 300) reasons.push("минимальная сумма заказа не достигнута (<300)");
+        const msg = b?.message || b?.error || "409 Conflict";
+        client.test("order not created (409)", () => {
+            client.assert(false, `POST /orders -> 409. ${JSON.stringify({msg, subtotal, reasons})}`);
+        });
+    } else {
+        client.test("pay order created", () => {
+            client.assert(response.status === 200, `Expected 200, got ${response.status}`);
+            client.assert(client.global.get("orderIdPay") != null, "orderIdPay not set");
+        });
+    }
+%}
+
+
+
+
+### 26.4.a) Диагностика при 409 (если заказ не создался)
+GET {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+> {%
+    const needDiag = String(client.global.get("needOrderDiag") || "false") === "true";
+
+    if (!needDiag) {
+        client.test("skip diag (order created)", () => client.assert(true));
+    } else {
+        const b = response.body || {};
+        const subtotal = Number(b?.subtotal ?? 0);
+        const hasItem  = String(client.global.get("hasPayItem")) === "1";
+
+        // попробуем достать текст из предыдущего ответа (POST /orders)
+        const prev = (typeof client.getPreviousResponse === "function")
+            ? client.getPreviousResponse()
+            : null;
+        const msg = prev?.body?.message || prev?.body?.error || "Unknown 409 reason";
+
+        // соберём причины
+        const reasons = [];
+        if (!hasItem) reasons.push("корзина пуста / item не добавился");
+        if (subtotal < 300) reasons.push("минимальная сумма заказа не достигнута (<300)");
+
+        // сохраним краткую сводку (пригодится в логах/ассертах далее)
+        client.global.set("orderCreateDiag",
+            JSON.stringify({ message: msg, subtotal, itemsCount: (b?.items||[]).length, reasons })
+        );
+
+        try { console.log("ORDER CREATE 409:", { message: msg, subtotal, items: b?.items, reasons }); } catch(e) {}
+
+        client.test("diagnostic logged", () => client.assert(true));
+    }
+%}
+
+
+### 26.4.b) Если заказ создан — подтверждаем ID и читаем total
+GET {{baseUrl}}/orders/{{orderIdPay}}
+Accept: application/json
+
+> {%
+    const needDiag = String(client.global.get("needOrderDiag") || "false") === "true";
+
+    if (!needDiag) {
+        const b = response.body || {};
+
+        // подстрахуем orderIdPay из тела
+        const idFromBody = b?.id ?? b?.orderId ?? b?.order?.id ?? null;
+        if (idFromBody != null && !client.global.get("orderIdPay")) {
+            client.global.set("orderIdPay", idFromBody);
+        }
+
+        // считаем total (нормальные поля -> резервный подсчёт по позициям)
+        function sumLines(list) {
+            if (!Array.isArray(list)) return null;
+            let s = 0, ok = false;
+            for (const it of list) {
+                const t = it?.total ?? (
+                    (it?.price ?? it?.amount) != null && it?.quantity != null
+                        ? Number(it.price ?? it.amount) * Number(it.quantity)
+                        : null
+                );
+                if (t != null) { s += Number(t); ok = true; }
+            }
+            return ok ? s : null;
+        }
+
+        let tot = b?.total ?? b?.subtotal ?? b?.amount ?? null;
+        if (tot == null) tot = sumLines(b?.items) ?? sumLines(b?.lines) ?? null;
+
+        if (tot != null) {
+            // нормализуем до 2 знаков, в переменную кладём строку "350.00" — подстановка в JSON останется числом
+            client.global.set("orderTotalPay", Number(tot).toFixed(2));
+        }
+
+        // отметим готовность к оплате
+        const ready = (client.global.get("orderIdPay") != null) && (client.global.get("orderTotalPay") != null);
+        client.global.set("readyForPayments", ready ? "1" : "0");
+
+        client.test("orderIdPay & orderTotalPay set", () => {
+            client.assert(response.status === 200, "Expected 200");
+            client.assert(client.global.get("orderIdPay")   != null, "orderIdPay not set");
+            client.assert(client.global.get("orderTotalPay")!= null, "orderTotalPay not set");
+        });
+    } else {
+        // диагностика уже была в 26.4.a
+        client.test("skip GET /orders/{id} (diagnostic mode)", () => client.assert(true));
+    }
+%}
+
+
+### 26.4.c) Guard: готовы к оплате?
+GET {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+> {%
+    const id  = Number(client.global.get("orderIdPay") || 0);
+    const amt = Number(client.global.get("orderTotalPay") || 0);
+    const cart = response.body || {};
+    client.test("ready for payments", () => {
+        const diag = { id, amt, cartSubtotal: cart?.subtotal ?? null, items: cart?.items?.length ?? 0 };
+        client.assert(id > 0 && amt > 0, "Not ready for payments: " + JSON.stringify(diag));
+    });
+%}
+
+
+### 27) PAYMENTS: create payment (PENDING) -> {{paymentId}}
+POST {{baseUrl}}/payments
+Accept: application/json
+Content-Type: application/json
+
+{
+  "orderId": {{orderIdPay}},
+  "amount": {{orderTotalPay}},
+  "externalId": "pay-{{$timestamp}}"
+}
+
+> {%
+    const b = response.body || {};
+    const loc = response.headers['Location'] || response.headers['location'];
+    const mid = b?.id ?? b?.paymentId ?? (loc ? (String(loc).match(/\/(\d+)(?:\?.*)?$/) || [])[1] : null);
+
+    if (mid != null) client.global.set("paymentId", Number(mid));
+
+    const id  = Number(client.global.get("orderIdPay") || 0);
+    const amt = Number(client.global.get("orderTotalPay") || 0);
+
+    client.test("payment pending", () => {
+        const ok = [200,201].includes(response.status);
+        const diag = { status: response.status, body: b, sent: { id, amt } };
+        client.assert(ok, "Expected 200/201, got " + JSON.stringify(diag));
+        client.assert(client.global.get("paymentId") != null, "paymentId not set");
+    });
+%}
+
+
+
+### 28) PAYMENTS: mark SUCCESS (order -> CONFIRMED)
+PATCH {{baseUrl}}/payments/{{paymentId}}/status
+Accept: application/json
+Content-Type: application/json
+
+{ "status": "SUCCESS" }
+
+> {%
+    client.test("payment success", () => client.assert(response.status === 200));
+%}
+
+### 29) VERIFY: order really CONFIRMED
+GET {{baseUrl}}/orders/{{orderIdPay}}
+Accept: application/json
+
+> {%
+    const st = response.body?.status || response.body?.state || null;
+    client.test("order confirmed", () => client.assert(st === "CONFIRMED"));
+%}
+
+### 30) NEGATIVE: wrong amount -> 409
+POST {{baseUrl}}/payments
+Accept: application/json
+Content-Type: application/json
+
+{
+  "orderId": {{orderIdPay}},
+  "amount": 1.00,
+  "externalId": "wrong-amount-{{$timestamp}}"
+}
+
+> {%
+    client.test("wrong amount -> 409", () => client.assert(response.status === 409));
+%}
+
+### 31) PREP for FAILED: another order (>=300) -> {{orderId2}}, {{orderTotal2}}
+# Чистим корзину и убедимся, что дешёвая вариация точно доступна
+DELETE {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+PATCH {{baseUrl}}/menu/{{cheapVariationId}}/availability
+Accept: application/json
+Content-Type: application/json
+
+{ "available": true }
+
+> {%
+    client.test("cheap variation AVAILABLE", () => client.assert(response.status === 200));
+%}
+### 31.0) reset diag flags
+GET {{baseUrl}}/users   # любой лёгкий GET
+Accept: application/json
+
+> {%
+    client.global.set("needOrder2Diag", "false");
+    client.global.set("___needSecondAdd", "0");
+    client.global.set("orderId2", 0);
+    client.global.set("paymentId2", 0);
+%}
+
+
+### 31.1) Кладём 3× cheap и проверяем корзину (с ретраем) -> {{orderTotal2}}
+POST {{baseUrl}}/cart/items
+Accept: application/json
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "variationId": {{cheapVariationId}},
+  "quantity": 3
+}
+
+### Первая проверка корзины
+GET {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+> {%
+    function hasItem(b, id) {
+        const items = Array.isArray(b?.items) ? b.items : [];
+        return items.some(i => String(i.variationId ?? i.id) === String(id));
+    }
+    function readSubtotal(b) {
+        return Number(b?.subtotal ?? b?.total ?? 0);
+    }
+
+    const cheapId  = client.global.get("cheapVariationId");
+    const b1       = response.body || {};
+    const ok1      = hasItem(b1, cheapId);
+    const subtotal = readSubtotal(b1);
+
+    client.global.set("orderTotal2", subtotal);
+    client.global.set("needOrder2Diag", "false");
+
+    // Если первая попытка не попала — сделаем ретрай синхронно
+    if (!ok1 || subtotal < 300) {
+        // повторная попытка
+        client.global.set("___needSecondAdd", "1");
+    } else {
+        client.global.set("___needSecondAdd", "0");
+    }
+
+    client.test("cart check #1 (may retry)", () => client.assert(true));
+%}
+
+### Условный ретрай добавления
+POST {{baseUrl}}/cart/items
+Accept: application/json
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "variationId": {{cheapVariationId}},
+  "quantity": 3
+}
+
+> {%
+  // Выполнять этот шаг только если реально нужен ретрай
+  if (client.global.get("___needSecondAdd") !== "1") {
+    client.test("skip second add", () => client.assert(true));
+  } else {
+    client.test("second add sent", () => client.assert(response.status === 200));
+  }
+%}
+
+### Итоговая проверка корзины — после ретрая
+GET {{baseUrl}}/cart?userId={{userId}}
+Accept: application/json
+
+> {%
+  function hasItem(b, id) {
+    const items = Array.isArray(b?.items) ? b.items : [];
+    return items.some(i => String(i.variationId ?? i.id) === String(id));
+  }
+  function readSubtotal(b) {
+    return Number(b?.subtotal ?? b?.total ?? 0);
+  }
+
+  const cheapId   = client.global.get("cheapVariationId");
+  const b2        = response.body || {};
+  const ok2       = hasItem(b2, cheapId);
+  const subtotal2 = readSubtotal(b2);
+
+  // сохраняем subtotal как orderTotal2
+  client.global.set("orderTotal2", subtotal2);
+
+  // если после ретрая всё равно пусто — уходим в диагностический режим
+  const diag = !(ok2 && subtotal2 >= 300);
+  client.global.set("needOrder2Diag", diag ? "true" : "false");
+
+  try { console.log("CART CHECK", { ok2, subtotal2, itemsCount: (b2.items||[]).length, cheapId: String(cheapId) }); } catch(e){}
+
+  client.test("cart contains cheap x3", () => client.assert(ok2, JSON.stringify({hasCheap: ok2, itemsCount: (b2.items||[]).length, cheapId: String(cheapId)})));
+  client.test("cart subtotal >= 300", () => client.assert(subtotal2 >= 300, JSON.stringify({subtotal: subtotal2})));
+%}
+
+### 31.2) Создаём второй заказ -> {{orderId2}}
+POST {{baseUrl}}/orders
+Accept: application/json
+Content-Type: application/json
+
+{ "userId": {{userId}} }
+
+> {%
+    const diagPre = String(client.global.get("needOrder2Diag") || "false") === "true";
+    if (diagPre) {
+        client.global.set("orderId2", 0);
+        client.test("skip create order2 (diag mode)", () => client.assert(true));
+    } else {
+        const b   = response.body || {};
+        const loc = response.headers['Location'] || response.headers['location'];
+        const m   = loc ? String(loc).match(/\/([0-9]+)(?:\?.*)?$/) : null;
+        const oid = b?.id ?? b?.orderId ?? b?.order?.id ?? (m ? Number(m[1]) : null);
+
+        if (oid != null) {
+            client.global.set("orderId2", oid);
+            client.global.set("needOrder2Diag", "false");
+        } else {
+            client.global.set("orderId2", 0);
+            client.global.set("needOrder2Diag", "true");
+        }
+        client.test("order2 created (200)", () => client.assert(response.status === 200, "Expected 200, got " + response.status));
+    }
+%}
+
+### 31.3) Подтверждаем total из /orders/{orderId2} (если есть id)
+GET {{baseUrl}}/orders/{{orderId2}}
+Accept: application/json
+
+> {%
+    const diag = String(client.global.get("needOrder2Diag") || "false") === "true";
+    const id2  = Number(client.global.get("orderId2") || 0);
+
+    if (diag || id2 <= 0) {
+        client.test("skip GET /orders/{orderId2}", () => client.assert(true));
+    } else {
+        const b = response.body || {};
+        function sumLines(list){ if(!Array.isArray(list)) return null; let s=0,ok=false; for(const it of list){ const t = it?.total ?? ((it?.price ?? it?.amount) != null && it?.quantity != null ? Number(it.price ?? it.amount)*Number(it.quantity) : null); if(t!=null){ s+=Number(t); ok=true; } } return ok ? s : null; }
+        let tot = b?.total ?? b?.subtotal ?? b?.amount ?? null;
+        if (tot == null) tot = sumLines(b?.items) ?? sumLines(b?.lines) ?? null;
+        if (tot != null) client.global.set("orderTotal2", Number(tot));
+        client.test("order2 total saved", () => client.assert(client.global.get("orderTotal2") != null, "orderTotal2 not set"));
+    }
+%}
+
+### 32) PAYMENTS: create second payment (PENDING) -> {{paymentId2}}
+POST {{baseUrl}}/payments
+Accept: application/json
+Content-Type: application/json
+
+{
+  "orderId": {{orderId2}},
+  "amount": {{orderTotal2}},
+  "externalId": "fail-{{$timestamp}}"
+}
+
+> {%
+    const diag = String(client.global.get("needOrder2Diag") || "false") === "true";
+    const id2  = Number(client.global.get("orderId2") || 0);
+
+    if (diag || id2 <= 0) {
+        client.test("skip payment2 (no order2)", () => client.assert(true));
+    } else {
+        const b   = response.body || {};
+        const loc = response.headers['Location'] || response.headers['location'];
+        const mid = b?.id ?? b?.paymentId ?? (loc ? (String(loc).match(/\/(\d+)(?:\?.*)?$/) || [])[1] : null);
+        if (mid != null) client.global.set("paymentId2", Number(mid));
+
+        client.test("payment2 pending 200/201", () => {
+            const ok = [200,201].includes(response.status);
+            client.assert(ok, "Expected 200/201, got " + response.status);
+            client.assert(client.global.get("paymentId2") != null, "paymentId2 not set");
+        });
+    }
+%}
+
+### 33) PAYMENTS: mark payment2 FAILED (order2 -> CANCELLED)
+PATCH {{baseUrl}}/payments/{{paymentId2}}/status
+Accept: application/json
+Content-Type: application/json
+
+{ "status": "FAILED" }
+
+> {%
+    const diag = String(client.global.get("needOrder2Diag") || "false") === "true";
+    if (diag) {
+        client.test("skip mark FAILED (no order2/payment2)", () => client.assert(true));
+    } else {
+        client.test("payment2 failed -> 200", () => client.assert(response.status === 200, "Expected 200"));
+    }
+%}
+
+### 34) VERIFY: order2 CANCELLED
+GET {{baseUrl}}/orders/{{orderId2}}
+Accept: application/json
+
+> {%
+    const diag = String(client.global.get("needOrder2Diag") || "false") === "true";
+    if (diag) {
+        client.test("skip verify order2 (no id)", () => client.assert(true));
+    } else {
+        const st2 = response.body?.status || response.body?.state || null;
+        client.test("order2 cancelled", () => client.assert(st2 === "CANCELLED", "status=" + st2));
+    }
+%}
+
+### 35) PAYMENTS: список платежей по orderIdPay
+GET {{baseUrl}}/payments?orderId={{orderIdPay}}
+Accept: application/json
+
+> {%
+    client.test("list for orderIdPay ok", () => client.assert(Array.isArray(response.body)));
+%}
+
+### 36) PAYMENTS: список платежей по orderId2
+GET {{baseUrl}}/payments?orderId={{orderId2}}
+Accept: application/json
+
+> {%
+    const diag = String(client.global.get("needOrder2Diag") || "false") === "true";
+    if (diag) {
+        client.test("skip list for orderId2 (no id)", () => client.assert(true));
+    } else {
+        client.test("list for orderId2 ok", () => client.assert(Array.isArray(response.body)));
+    }
+%}
