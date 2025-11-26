@@ -1,6 +1,7 @@
-target/
-.idea/
+/target/
+/.idea/
 *.iml
-*.log
+/out/
 .DS_Store
 Thumbs.db
+!.mvn/wrapper/maven-wrapper.jar
