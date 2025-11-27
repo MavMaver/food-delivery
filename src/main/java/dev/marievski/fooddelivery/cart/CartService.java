@@ -10,15 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
-/**
- * Бизнес-логика корзины.
- * Правила:
- *  - один активный Cart на пользователя (создаём при первом обращении);
- *  - добавлять можно только вариации одного ресторана (п.51);
- *  - если вариация недоступна — запрещаем;
- *  - если ресторан закрыт — запрещаем (п.60);
- *  - ETA считаем как средневзвешенное время готовки + "нагрузка курьеров".
- */
+
 @Service
 public class CartService {
 
@@ -37,7 +29,7 @@ public class CartService {
         this.users = users;
     }
 
-    /** Найти активную корзину пользователя или создать новую (п.61). */
+
     @Transactional
     public Cart getOrCreateActiveCart(Long userId) {
         return carts.findByUserIdAndActiveTrue(userId)
@@ -89,7 +81,7 @@ public class CartService {
         return cart;
     }
 
-    /** Изменить количество позиции. qty<=0 -> удаление. */
+    //* Изменить количество позиции. qty<=0 -> удаление.
     @Transactional
     public Cart updateItemQuantity(Long itemId, int qty) {
         CartItem it = items.findById(itemId).orElseThrow(() -> new IllegalArgumentException("Позиция корзины не найдена"));
@@ -103,7 +95,7 @@ public class CartService {
         return it.getCart();
     }
 
-    /** Удалить позицию. */
+    //Удалить позицию
     @Transactional
     public Cart removeItem(Long itemId) {
         CartItem it = items.findById(itemId).orElseThrow(() -> new IllegalArgumentException("Позиция корзины не найдена"));
@@ -113,7 +105,7 @@ public class CartService {
         return c;
     }
 
-    /** Очистить корзину. */
+    // Очистить корзину
     @Transactional
     public void clear(Long userId) {
         Cart c = getOrCreateActiveCart(userId);
@@ -121,25 +113,21 @@ public class CartService {
         c.setRestaurant(null);
     }
 
-    /** Подсчитать текущую сумму корзины. */
+    // Подсчитать текущую сумму корзины
     public BigDecimal subtotal(Cart cart) {
         return cart.getItems().stream()
                 .map(i -> i.getVariation().getPrice().multiply(BigDecimal.valueOf(i.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    /**
-     * Примерная оценка ETA:
-     *  - средневзвешенное время готовки по позициям корзины;
-     *  - +10 минут "нагрузка курьеров"
-     */
+
     public int etaMinutes(Cart cart) {
         int totalQty = cart.getItems().stream().mapToInt(CartItem::getQuantity).sum();
         if (totalQty == 0) return 0;
         int weightedCooking = cart.getItems().stream()
                 .mapToInt(i -> i.getVariation().getCookingMinutes() * i.getQuantity())
                 .sum() / totalQty;
-        int courierLoad = 10; // можно улучшить, учитывая активные заказы
+        int courierLoad = 10;
         return weightedCooking + courierLoad;
     }
 }

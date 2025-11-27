@@ -7,13 +7,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Ресторан.
- * Важные моменты:
- *  - rating храню в ресторане (считается из отзывов позже);
- *  - open = открыт/закрыт (DELETE по ТЗ — "закрыть ресторан");
- *  - LAZY на коллекциях; DTO в контроллере исключают рекурсию.
- */
+
 @Entity
 @Table(name = "restaurants")
 public class Restaurant {

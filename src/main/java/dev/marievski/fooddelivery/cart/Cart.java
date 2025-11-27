@@ -8,12 +8,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Корзина пользователя.
- * Важные правила:
- *  - По ТЗ у пользователя может быть только ОДНА "активная" корзина (п.61) -> флаг active.
- *  - Корзина может содержать блюда только из ОДНОГО ресторана (п.51) -> restaurant.
- */
 @Entity
 @Table(name = "carts")
 public class Cart {
@@ -26,7 +20,7 @@ public class Cart {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    /** Ресторан, к которому относится корзина (появится после первого добавления блюда). */
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "restaurant_id")
     private Restaurant restaurant;

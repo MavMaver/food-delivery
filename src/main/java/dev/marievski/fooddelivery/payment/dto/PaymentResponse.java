@@ -13,32 +13,24 @@ public class PaymentResponse {
     private Instant createdAt;
     private Instant updatedAt;
 
-    public PaymentResponse() {}
-
-    public PaymentResponse(Long id, Long orderId, BigDecimal amount, PaymentStatus status,
-                           String externalId, Instant createdAt, Instant updatedAt) {
-        this.id = id;
-        this.orderId = orderId;
-        this.amount = amount;
-        this.status = status;
-        this.externalId = externalId;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
-    }
-
     public Long getId() { return id; }
-    public Long getOrderId() { return orderId; }
-    public BigDecimal getAmount() { return amount; }
-    public PaymentStatus getStatus() { return status; }
-    public String getExternalId() { return externalId; }
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
-
     public void setId(Long id) { this.id = id; }
+
+    public Long getOrderId() { return orderId; }
     public void setOrderId(Long orderId) { this.orderId = orderId; }
+
+    public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
+
+    public PaymentStatus getStatus() { return status; }
     public void setStatus(PaymentStatus status) { this.status = status; }
+
+    public String getExternalId() { return externalId; }
     public void setExternalId(String externalId) { this.externalId = externalId; }
+
+    public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

@@ -14,14 +14,6 @@ public class PaymentCreateRequest {
 
     private String externalId;
 
-    public PaymentCreateRequest() {}
-
-    public PaymentCreateRequest(Long orderId, BigDecimal amount, String externalId) {
-        this.orderId = orderId;
-        this.amount = amount;
-        this.externalId = externalId;
-    }
-
     public Long getOrderId() { return orderId; }
     public void setOrderId(Long orderId) { this.orderId = orderId; }
 
