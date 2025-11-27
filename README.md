@@ -135,13 +135,14 @@ E2E сценарии
 🗂 Структура проекта
 text
 src/main/java/dev/marievski/fooddelivery/
-├── cart/           # Корзина и позиции
-├── common/         # Общие классы (исключения, enum)
-├── order/          # Заказы и статусы
-├── payment/        # Платежная система
-├── restaurant/     # Рестораны и меню
-├── user/           # Пользователи и версии
+├── cart/       # Корзина и позиции
+├── common/     # Общие классы (исключения, enum)
+├── order/      # Заказы и статусы
+├── payment/    # Платежная система
+├── restaurant/ # Рестораны и меню
+├── user/       # Пользователи и версии
 └── FoodDeliveryApplication.java
+
 ⚙️ Конфигурация
 Основной файл конфигурации: src/main/resources/application.yml
 
